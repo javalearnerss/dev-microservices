@@ -1,0 +1,71 @@
+<div class="container mt-4">
+
+  <h2 class="mb-4">Users</h2>
+
+  <!-- Load Users -->
+  <div class="mb-3">
+    <button class="btn btn-primary" (click)="load()">
+      Load All Users
+    </button>
+  </div>
+
+  <!-- Get User -->
+  <div class="card mb-4 shadow-sm">
+    <div class="card-header fw-semibold">
+      Get User
+    </div>
+
+    <div class="card-body">
+      <div class="row g-2 align-items-center">
+        <div class="col-md-4">
+          <input
+            class="form-control"
+            [(ngModel)]="userId"
+            placeholder="UserId (U-1001)"
+          />
+        </div>
+
+        <div class="col-md-2">
+          <button
+            class="btn btn-outline-primary w-100"
+            (click)="get()"
+          >
+            Get User
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Single User -->
+  <div *ngIf="user" class="alert alert-info">
+    <strong>{{ user.userId }}</strong>
+    — {{ user.name }} ({{ user.email }})
+  </div>
+
+  <hr />
+
+  <!-- Users List -->
+  <div class="card shadow-sm" *ngIf="users?.length">
+    <div class="card-header fw-semibold">
+      Users List
+    </div>
+
+    <ul class="list-group list-group-flush">
+      <li
+        class="list-group-item"
+        *ngFor="let u of users"
+      >
+        <strong>{{ u.userId }}</strong>
+        — {{ u.name }}
+        <span class="text-muted">({{ u.email }})</span>
+      </li>
+    </ul>
+  </div>
+
+  <!-- Error -->
+  <div *ngIf="err" class="alert alert-danger mt-3">
+    {{ err }}
+  </div>
+
+</div>

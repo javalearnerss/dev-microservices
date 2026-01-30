@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: payment-service-deployment
+  labels:
+    app: payment-service-app
+    version: v1
+
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: payment-service-app
+      version: v1
+
+  template:
+    metadata:
+      labels:
+        app: payment-service-app
+        version: v1
+
+    spec:
+      containers:
+        - name: payment-service-container
+          image: payment-service:v1.100
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8053
+            initialDelaySeconds: 60
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8053
+            initialDelaySeconds: 60
+            periodSeconds: 10              
+
+---
+
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: payment-service
+
+
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: 8053
+  selector:
+    app: payment-service-app
+    version: v1
