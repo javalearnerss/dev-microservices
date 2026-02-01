@@ -1,0 +1,186 @@
+<div class="container mt-4">
+
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+    <h2 class="mb-0">Bookings</h2>
+    <span class="text-muted small">
+      Create → Confirm/Cancel using the same bookingId
+    </span>
+  </div>
+
+  <!-- Create Booking -->
+  <div class="card mb-4 shadow-sm">
+    <div class="card-header fw-semibold">Create Booking</div>
+
+    <div class="card-body">
+      <div class="row g-2 align-items-end">
+        <div class="col-md-3">
+          <label class="form-label mb-1">UserId</label>
+          <input
+            class="form-control"
+            [(ngModel)]="userId"
+            placeholder="U-1001"
+          />
+        </div>
+
+        <div class="col-md-3">
+          <label class="form-label mb-1">ShowId</label>
+          <input
+            class="form-control"
+            [(ngModel)]="showId"
+            placeholder="SHOW-101"
+          />
+        </div>
+
+        <div class="col-md-2">
+          <label class="form-label mb-1">Qty</label>
+          <input
+            type="number"
+            class="form-control"
+            [(ngModel)]="qty"
+            min="1"
+            placeholder="2"
+          />
+        </div>
+
+        <div class="col-md-2">
+          <label class="form-label mb-1">Amount</label>
+          <input
+            type="number"
+            class="form-control"
+            [(ngModel)]="amount"
+            min="1"
+            placeholder="500"
+          />
+        </div>
+
+        <div class="col-md-2">
+          <div class="form-check mb-2">
+            <input
+              class="form-check-input"
+              type="checkbox"
+              id="failPayment"
+              [(ngModel)]="failPayment"
+            />
+            <label class="form-check-label" for="failPayment">
+              failPayment
+            </label>
+          </div>
+
+          <button
+            class="btn btn-primary w-100"
+            (click)="create()"
+            [disabled]="loadingCreate || !userId || !showId || qty <= 0 || amount <= 0"
+          >
+            <span
+              *ngIf="loadingCreate"
+              class="spinner-border spinner-border-sm me-2"
+              role="status"
+              aria-hidden="true"
+            ></span>
+            Create
+          </button>
+        </div>
+      </div>
+
+      <div class="mt-3 alert alert-secondary mb-0">
+        <small>
+          Tip: Pay will be <strong>SUCCESS</strong> unless you tick
+          <code>failPayment</code>.
+        </small>
+      </div>
+    </div>
+  </div>
+
+  <!-- Manage Booking -->
+  <div class="card mb-4 shadow-sm">
+    <div class="card-header fw-semibold">Manage Booking</div>
+
+    <div class="card-body">
+      <div class="row g-2 align-items-end">
+        <div class="col-md-6">
+          <label class="form-label mb-1">BookingId</label>
+          <input
+            class="form-control"
+            [(ngModel)]="bookingId"
+            placeholder="Paste bookingId here"
+          />
+        </div>
+
+        <div class="col-md-2">
+          <button
+            class="btn btn-outline-primary w-100"
+            (click)="get()"
+            [disabled]="loadingGet || !bookingId"
+          >
+            <span
+              *ngIf="loadingGet"
+              class="spinner-border spinner-border-sm me-2"
+              role="status"
+              aria-hidden="true"
+            ></span>
+            Get
+          </button>
+        </div>
+
+        <div class="col-md-2">
+          <button
+            class="btn btn-success w-100"
+            (click)="confirm()"
+            [disabled]="loadingConfirm || !bookingId"
+          >
+            <span
+              *ngIf="loadingConfirm"
+              class="spinner-border spinner-border-sm me-2"
+              role="status"
+              aria-hidden="true"
+            ></span>
+            Confirm
+          </button>
+        </div>
+
+        <div class="col-md-2">
+          <button
+            class="btn btn-danger w-100"
+            (click)="cancel()"
+            [disabled]="loadingCancel || !bookingId"
+          >
+            <span
+              *ngIf="loadingCancel"
+              class="spinner-border spinner-border-sm me-2"
+              role="status"
+              aria-hidden="true"
+            ></span>
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Result -->
+  <div class="card mb-3 shadow-sm" *ngIf="booking">
+    <div class="card-header fw-semibold d-flex align-items-center justify-content-between">
+      <span>Booking</span>
+
+      <span class="badge"
+            [ngClass]="{
+              'text-bg-secondary': booking.status === 'PENDING_PAYMENT',
+              'text-bg-success': booking.status === 'CONFIRMED',
+              'text-bg-danger': booking.status === 'PAYMENT_FAILED' || booking.status === 'CANCELLED',
+              'text-bg-warning': booking.status === 'CONFIRM_FAILED_REFUNDED'
+            }">
+        {{ booking.status }}
+      </span>
+    </div>
+
+    <div class="card-body">
+      <pre class="bg-light p-3 rounded mb-0">{{ booking | json }}</pre>
+    </div>
+  </div>
+
+  <!-- Error -->
+  <div *ngIf="err" class="alert alert-danger">
+    {{ err }}
+  </div>
+
+</div>

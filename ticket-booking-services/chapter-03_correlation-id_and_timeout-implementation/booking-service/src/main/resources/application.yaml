@@ -1,0 +1,47 @@
+resilience4j:
+  circuitbreaker:
+    instances:
+      inventoryCB:
+        slidingWindowType: COUNT_BASED
+        slidingWindowSize: 20
+        minimumNumberOfCalls: 10
+        failureRateThreshold: 50
+        slowCallDurationThreshold: 900ms
+        slowCallRateThreshold: 50
+        waitDurationInOpenState: 10s
+        permittedNumberOfCallsInHalfOpenState: 5
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+
+      paymentCB:
+        slidingWindowType: COUNT_BASED
+        slidingWindowSize: 20
+        minimumNumberOfCalls: 10
+        failureRateThreshold: 50
+        slowCallDurationThreshold: 1500ms
+        slowCallRateThreshold: 50
+        waitDurationInOpenState: 10s
+        permittedNumberOfCallsInHalfOpenState: 5
+
+  timelimiter:
+    instances:
+      inventoryTL:
+        timeoutDuration: 3s
+      paymentTL:
+        timeoutDuration: 2s
+      userTL:
+        timeoutDuration: 2s
+
+spring:
+  cloud:
+    openfeign:
+      client:
+        config:
+          inventoryClient:
+            connectTimeout: 5000
+            readTimeout: 5000
+          paymentClient:
+            connectTimeout: 5000
+            readTimeout: 5000
+          userClient:
+            connectTimeout: 5000
+            readTimeout: 5000

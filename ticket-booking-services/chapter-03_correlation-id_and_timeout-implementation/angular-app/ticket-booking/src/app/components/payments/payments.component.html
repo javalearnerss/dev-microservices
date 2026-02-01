@@ -1,0 +1,104 @@
+<div class="container mt-4">
+
+  <h2 class="mb-4">Payments</h2>
+
+  <!-- Pay -->
+  <div class="card mb-4 shadow-sm">
+    <div class="card-header fw-semibold">
+      Pay
+    </div>
+
+    <div class="card-body">
+      <div class="row g-2 align-items-center">
+        <div class="col-md-5">
+          <input
+            class="form-control"
+            [(ngModel)]="bookingId"
+            placeholder="BookingId"
+          />
+        </div>
+
+        <div class="col-md-2">
+          <input
+            type="number"
+            class="form-control"
+            [(ngModel)]="amount"
+            placeholder="Amount"
+          />
+        </div>
+
+        <div class="col-md-3">
+          <div class="form-check mt-2">
+            <input
+              class="form-check-input"
+              type="checkbox"
+              [(ngModel)]="fail"
+              id="failCheck"
+            />
+            <label class="form-check-label" for="failCheck">
+              fail=true
+            </label>
+          </div>
+        </div>
+
+        <div class="col-md-2">
+          <button
+            class="btn btn-primary w-100"
+            (click)="pay()"
+          >
+            Pay
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Actions -->
+  <div class="card mb-4 shadow-sm">
+    <div class="card-header fw-semibold">
+      Actions
+    </div>
+
+    <div class="card-body">
+      <div class="d-flex gap-2 flex-wrap">
+        <button
+          class="btn btn-outline-primary"
+          (click)="status()"
+        >
+          Status
+        </button>
+
+        <button
+          class="btn btn-outline-danger"
+          (click)="refund()"
+        >
+          Refund
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Payment Result -->
+  <div class="card mb-3 shadow-sm" *ngIf="payment">
+    <div class="card-header fw-semibold">
+      Payment
+    </div>
+    <div class="card-body">
+      <pre class="bg-light p-3 rounded mb-0">{{ payment | json }}</pre>
+    </div>
+  </div>
+
+  <!-- Error -->
+  <div *ngIf="err" class="alert alert-danger">
+    {{ err }}
+  </div>
+
+  <!-- Tip -->
+  <div class="alert alert-secondary mt-3">
+    <small>
+      Tip: Pay returns <strong>SUCCESS</strong> unless you tick
+      <code>fail=true</code>. Refund works only for SUCCESS payments.
+    </small>
+  </div>
+
+</div>

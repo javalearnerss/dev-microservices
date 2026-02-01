@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: booking-api-gateway-deployment
+  labels:
+    app: booking-api-gateway
+    version: v1
+
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bkng-api-gateway
+      version: v1
+  template:
+    metadata:
+      labels:
+        app: bkng-api-gateway
+        version: v1
+
+    spec:
+      containers:
+        - name: bkng-api-gateway
+          image: booking-api-gateway:v1

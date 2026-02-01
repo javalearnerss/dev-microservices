@@ -1,0 +1,33 @@
+
+spring:
+  application:
+    name: booking-api-gateway
+
+  cloud:
+    gateway:
+      routes:
+        - id: booking-route
+          uri: ${BOOKING_SERVICE_URL:http://localhost:8051}
+          predicates:
+            - Path=/bookings/**,/bookings
+
+        - id: inventory-route
+          uri: ${INVENTORY_SERVICE_URL:http://localhost:8054}
+          predicates:
+            - Path=/inventory/**,/inventory
+
+        - id: user-route
+          uri: ${USER_SERVICE_URL:http://localhost:8052}
+          predicates:
+            - Path=/users/**,/users
+
+        - id: payment-route
+          uri: ${PAYMENT_SERVICE_URL:http://localhost:8053}
+          predicates:
+            - Path=/payments/**,/payments
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,gateway

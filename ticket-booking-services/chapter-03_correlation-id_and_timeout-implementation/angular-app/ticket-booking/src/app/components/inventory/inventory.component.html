@@ -1,0 +1,99 @@
+<div class="container mt-4">
+
+  <h2 class="mb-4">Inventory (Shows)</h2>
+
+  <!-- ✅ All Shows (First Load) -->
+  <div class="card mb-4 shadow-sm">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <span class="fw-semibold">Available Shows</span>
+      <button class="btn btn-sm btn-outline-secondary" (click)="loadAllShows()">Refresh</button>
+    </div>
+
+    <div class="card-body" *ngIf="shows?.length; else noShows">
+      <div class="table-responsive">
+        <table class="table table-sm table-striped align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Show ID</th>
+              <th>Remaining</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let s of shows">
+              <td><b>{{ s.showId }}</b></td>
+              <td>{{ s.remaining }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <ng-template #noShows>
+      <div class="card-body">
+        <p class="mb-0 text-muted">No shows found.</p>
+      </div>
+    </ng-template>
+  </div>
+
+  <!-- Create / Update Show -->
+  <div class="card mb-4 shadow-sm">
+    <div class="card-header fw-semibold">
+      Create / Update Show
+    </div>
+
+    <div class="card-body">
+      <div class="row g-2 align-items-center">
+        <div class="col-md-4">
+          <input class="form-control" [(ngModel)]="showId" placeholder="ShowId (e.g., SHOW-101)" />
+        </div>
+
+        <div class="col-md-3">
+          <input type="number" class="form-control" [(ngModel)]="totalTickets" placeholder="Total tickets" />
+        </div>
+
+        <div class="col-md-3">
+          <button class="btn btn-primary w-100" (click)="createOrUpdate()">
+            Create / Update Show
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Get Show -->
+  <div class="card mb-4 shadow-sm">
+    <div class="card-header fw-semibold">
+      Get Show
+    </div>
+
+    <div class="card-body">
+      <div class="row g-2 align-items-center">
+        <div class="col-md-4">
+          <input class="form-control" [(ngModel)]="getShowId" placeholder="ShowId to fetch" />
+        </div>
+
+        <div class="col-md-3">
+          <button type="button" class="btn btn-outline-primary w-100" (click)="getShow()">
+  Get Show
+</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Response -->
+  <div class="card shadow-sm" *ngIf="resp">
+    <div class="card-header fw-semibold">
+      Response
+    </div>
+    <div class="card-body">
+      <pre class="bg-light p-3 rounded mb-0">{{ resp | json }}</pre>
+    </div>
+  </div>
+
+  <!-- Error -->
+  <div *ngIf="err" class="alert alert-danger mt-3">
+    {{ err }}
+  </div>
+
+</div>
