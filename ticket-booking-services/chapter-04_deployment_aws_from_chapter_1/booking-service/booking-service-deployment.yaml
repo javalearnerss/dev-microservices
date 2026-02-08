@@ -1,0 +1,71 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: booking-service-deployment
+  labels:
+    app: booking-service-app
+    version: v1
+
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: booking-service-app
+      version: v1
+
+  template:
+    metadata:
+      labels:
+        app: booking-service-app
+        version: v1
+
+    spec:
+      containers:
+        - name: booking-service-container
+          image: 
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8051
+            initialDelaySeconds: 60
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8051
+            initialDelaySeconds: 60
+            periodSeconds: 10 
+          envFrom:
+            - configMapRef:
+                name: booking-service-config             
+
+---
+
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: booking-service
+
+
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: 8051
+  selector:
+    app: booking-service-app
+    version: v1
+
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: booking-service-config
+data:
+  SERVER_PORT: "8051"
+  inventory.base-url: "http://inventory-service:8080"
+  user.base-url: "http://user-management-service:8080"
+  payment.base-url: "http://payment-service:8080"
