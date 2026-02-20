@@ -1,0 +1,30 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: trading-api-gateway
+
+  cloud:
+    gateway:
+      routes:
+        - id: exchange-service
+          uri: ${EXCHANGE_SERVICE_URL:http://localhost:9061}
+          predicates:
+            - Path=/exchange/**
+
+        - id: trade-enricher-service
+          uri: ${TRADE_ENRICHER_SERVICE_URL:http://localhost:9062}
+          predicates:
+            - Path=/trade-enricher/**
+
+        - id: trade-processor-service
+          uri: ${TRADE_PROCESSOR_SERVICE:http://localhost:9060}
+          predicates:
+            - Path=/trade-processor/**
+
+        - id: ref-data-provider
+          uri: ${REF_DATA_PROVIDER_SERVICE:http://localhost:9063}
+          predicates:
+            - Path=/reference/**
+
