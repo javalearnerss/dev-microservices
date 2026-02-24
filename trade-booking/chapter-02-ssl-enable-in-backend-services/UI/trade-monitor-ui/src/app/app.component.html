@@ -1,0 +1,50 @@
+<div class="page">
+    <!-- Header -->
+    <header class="hero">
+        <div class="hero-left">
+            <h1>Trade Booking Ops</h1>
+            <p>Book trades, monitor pipeline health, and validate reference lookups.</p>
+
+            <div class="pills">
+                <span class="pill" id="pill-exchange">
+                    <span class="dot"></span>
+                    Exchange: <strong id="exchangeName">NSE</strong>
+                </span>
+
+                <span class="pill pill-on" id="pill-status">
+                    <span class="dot"></span>
+                    Booking: <strong id="bookingStatus">ON</strong>
+                </span>
+
+                
+            </div>
+        </div>
+    </header>
+
+    <!-- Tabs -->
+    <nav class="tabs" aria-label="Primary navigation">
+        <a routerLink="/ops-dashboard" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }"
+            class="tab">
+            Dashboard
+        </a>
+
+        <a routerLink="/exchange" routerLinkActive="active" class="tab">
+            Live Feed
+        </a>
+
+        <a routerLink="/trade-enricher" routerLinkActive="active" class="tab">
+            Enricher
+        </a>
+
+        <a routerLink="/trade-processor" routerLinkActive="active" class="tab">
+            Processor
+        </a>
+
+        <a routerLink="/refdata-provide" routerLinkActive="active" class="tab">
+            Reference Data
+        </a>
+    </nav>
+
+
+    <router-outlet></router-outlet>
+</div>
