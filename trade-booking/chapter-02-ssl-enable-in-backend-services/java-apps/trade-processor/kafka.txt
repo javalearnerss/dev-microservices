@@ -1,0 +1,19 @@
+
+
+# Start Kafka Server
+.\bin\windows\kafka-server-start.bat .\config\kraft\server.properties
+
+# Create Kafka Topic
+# Main topic
+.\bin\windows\kafka-topics.bat --create --topic se.enriched.trade.events --bootstrap-server localhost:9092 --partitions 3 --replication-factor 1
+
+# Retry Topics
+.\bin\windows\kafka-topics.bat --create --topic nse.enriched.trade.events-retry-0 --bootstrap-server localhost:9092 --partitions 3 --replication-factor 1
+.\bin\windows\kafka-topics.bat --create --topic nse.enriched.trade.events-retry-1 --bootstrap-server localhost:9092 --partitions 3 --replication-factor 1
+.\bin\windows\kafka-topics.bat --create --topic nse.enriched.trade.events-retry-2 --bootstrap-server localhost:9092 --partitions 3 --replication-factor 1
+
+# Dlt Topic
+.\bin\windows\kafka-topics.bat --create --topic nse.enriched.trade.events-dlt --bootstrap-server localhost:9092 --partitions 3 --replication-factor 1
+
+# Create Kafka Console consumer
+.\bin\windows\kafka-console-consumer.bat --bootstrap-server localhost:9092 --topic se.enriched.trade.events --group topic-a-consumer-group --consumer-property client.id=consumer-console-1

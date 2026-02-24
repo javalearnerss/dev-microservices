@@ -1,0 +1,123 @@
+
+-----------------------------------------------------
+Install choco
+Open Windows powershell as admin to install choco
+
+Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))		
+
+---------------------------------------------------
+choco install mkcert
+
+https://github.com/FiloSottile/mkcert/releases
+
+Download : mkcert-v*-windows-amd64.exe
+
+rename : mkcert.exe
+
+Put it inside:
+
+C:\Windows\System32
+
+--------------------------------------------------------
+
+mkcert -install
+
+
+----------------------------------------------
+Step 3 — Generate Localhost Certificate
+
+Run:
+
+mkcert localhost 127.0.0.1 ::1
+
+You will get files like:
+
+localhost.pem
+localhost-key.pem
+
+----------------------------------------------
+Step 4 — Convert to Spring Boot Format (.p12)
+
+Windows usually needs OpenSSL.
+
+If OpenSSL not installed:
+
+Install via chocolatey:
+
+choco install openssl
+
+Now convert:
+
+openssl pkcs12 -export -out keystore.p12 -inkey localhost-key.pem -in localhost.pem -name localhost
+
+
+
+
+
+========================================================
+
+If everything is installed then 
+
+
+# here localhost is alias
++++++++++++++++++++++++++++++++++++
+mkcert localhost 127.0.0.1 ::1
+++++++++++++++++++++++++++++++++++
+
+You will get files like:
+
+localhost.pem
+localhost-key.pem
+
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+openssl pkcs12 -export -out keystore.p12 -inkey localhost-key.pem -in localhost.pem -name gateway-local
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+
+--------Service config for ssl----
+server.ssl.enabled=true
+server.ssl.key-store=file:D:/study/ssl/certificates/gateway-local.p12
+#server.ssl.key-store-password=${SSL_PASSWORD}
+server.ssl.key-store-password=password
+server.ssl.key-store-type=PKCS12
+server.ssl.key-alias=localhost
+
+
+==========================================================
+
+HTTPS = Secure communication + Server identity
+mTLS = Secure communication + Mutual identity verification
+
+Modern architecture:
+Internet → API Gateway        = HTTPS
+Gateway → Microservices       = mTLS
+Service ↔ Service             = mTLS
+
+
+==============================================================
+
+mkcert tradeprocessor localhost 127.0.0.1 ::1
+
+openssl pkcs12 -export -out trade-processor.p12 -inkey tradeprocessor-key.pem -in tradeprocessor.pem -name tradeprocessor
+
+==============================================================
+
+
+mkcert tradeenricher localhost 127.0.0.1 ::1
+
+openssl pkcs12 -export -out tradeenricher.p12 -inkey tradeenricher-key.pem -in tradeenricher.pem -name tradeenricher
+
+==============================================================
+
+
+mkcert refdataprovider localhost 127.0.0.1 ::1
+
+openssl pkcs12 -export -out refdataprovider.p12 -inkey refdataprovider-key.pem -in refdataprovider.pem -name refdataprovider
+
+==============================================================
+
+
+mkcert exchange localhost 127.0.0.1 ::1
+
+openssl pkcs12 -export -out exchange.p12 -inkey exchange-key.pem -in exchange.pem -name exchange
+
