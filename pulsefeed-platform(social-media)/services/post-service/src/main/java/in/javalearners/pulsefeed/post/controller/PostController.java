@@ -108,4 +108,61 @@ public class PostController {
         log.info("DELETE /api/posts/{} - Post deleted successfully", id);
         return ResponseEntity.noContent().build();
     }
+
+    /**
+     * Gets a post by ID with failure simulation capability.
+     *
+     * @param id identifier of the post
+     * @return the post
+     */
+    @GetMapping("/{id}/detail")
+    public Post getPostById(@PathVariable String id) {
+        log.info("GET /api/posts/{}/detail - Request received", id);
+        Post post = postService.getPostById(id);
+        log.info("GET /api/posts/{}/detail - Post retrieved: authorId={}", id, post.authorId());
+        return post;
+    }
+
+    /**
+     * Gets multiple posts by IDs with failure simulation.
+     *
+     * @param ids comma-separated list of post identifiers
+     * @return list of posts
+     */
+    @GetMapping("/batch")
+    public List<Post> getPostsByIds(@RequestParam String ids) {
+        log.info("GET /api/posts/batch - Request received for posts: {}", ids);
+        List<String> postIds = List.of(ids.split(","));
+        List<Post> posts = postService.getPostsByIds(postIds);
+        log.info("GET /api/posts/batch - Retrieved {} posts", posts.size());
+        return posts;
+    }
+
+    /**
+     * Gets post count by author with failure simulation.
+     *
+     * @param authorId identifier of the author
+     * @return post count
+     */
+    @GetMapping("/author/{authorId}/count")
+    public ResponseEntity<Long> getPostCountByAuthor(@PathVariable String authorId) {
+        log.info("GET /api/posts/author/{}/count - Request received", authorId);
+        long count = postService.getPostCountByAuthor(authorId);
+        log.info("GET /api/posts/author/{}/count - Author has {} posts", authorId, count);
+        return ResponseEntity.ok(count);
+    }
+
+    /**
+     * Gets all posts by a specific author with failure simulation.
+     *
+     * @param authorId identifier of the author
+     * @return list of posts by this author
+     */
+    @GetMapping("/author/{authorId}/posts")
+    public List<Post> getPostsByAuthor(@PathVariable String authorId) {
+        log.info("GET /api/posts/author/{}/posts - Request received", authorId);
+        List<Post> posts = postService.getPostsByAuthor(authorId);
+        log.info("GET /api/posts/author/{}/posts - Retrieved {} posts by author", authorId, posts.size());
+        return posts;
+    }
 }

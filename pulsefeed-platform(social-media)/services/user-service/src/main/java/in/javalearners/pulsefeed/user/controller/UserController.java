@@ -151,4 +151,62 @@ public class UserController {
         log.info("DELETE /api/users/{} - User deleted successfully", id);
         return ResponseEntity.noContent().build();
     }
+
+    /**
+     * Gets user profile with failure simulation capability.
+     * Endpoint for Feed Service to retrieve user details.
+     *
+     * @param id identifier of the user
+     * @return the user profile
+     */
+    @GetMapping("/{id}/profile")
+    public User getUserProfile(@PathVariable String id) {
+        log.info("GET /api/users/{}/profile - Request received, retrieving user profile", id);
+        User profile = userService.getUserProfile(id);
+        log.info("GET /api/users/{}/profile - User profile retrieved: name={}, email={}", id, profile.name(), profile.email());
+        return profile;
+    }
+
+    /**
+     * Gets multiple user profiles with failure simulation.
+     *
+     * @param ids comma-separated list of user identifiers
+     * @return list of user profiles
+     */
+    @GetMapping("/profiles")
+    public List<User> getUserProfiles(@org.springframework.web.bind.annotation.RequestParam String ids) {
+        log.info("GET /api/users/profiles - Request received for multiple users: {}", ids);
+        List<String> userIds = List.of(ids.split(","));
+        List<User> profiles = userService.getUserProfiles(userIds);
+        log.info("GET /api/users/profiles - Retrieved {} user profiles", profiles.size());
+        return profiles;
+    }
+
+    /**
+     * Gets follower count for a user with failure simulation.
+     *
+     * @param id identifier of the user
+     * @return follower count
+     */
+    @GetMapping("/{id}/followers/count")
+    public ResponseEntity<Long> getFollowerCount(@PathVariable String id) {
+        log.info("GET /api/users/{}/followers/count - Request received", id);
+        long count = userService.getFollowerCount(id);
+        log.info("GET /api/users/{}/followers/count - User has {} followers", id, count);
+        return ResponseEntity.ok(count);
+    }
+
+    /**
+     * Validates if a user exists with failure simulation.
+     *
+     * @param id identifier of the user
+     * @return true/false as string
+     */
+    @GetMapping("/{id}/exists")
+    public ResponseEntity<String> validateUserExists(@PathVariable String id) {
+        log.info("GET /api/users/{}/exists - Request received, validating user existence", id);
+        boolean exists = userService.validateUserExists(id);
+        log.info("GET /api/users/{}/exists - User exists: {}", id, exists);
+        return ResponseEntity.ok(String.valueOf(exists));
+    }
 }

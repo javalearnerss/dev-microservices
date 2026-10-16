@@ -1,17 +1,12 @@
 package in.javalearners.pulsefeed.user.service;
 
-import java.util.Comparator;
-import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-
 import in.javalearners.pulsefeed.user.dto.CreateUserRequest;
 import in.javalearners.pulsefeed.user.model.User;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
+
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
@@ -121,6 +116,7 @@ public class UserService {
 
     /**
      * Lists the users that a user follows.
+     * This method integrates with FailureSimulator for testing resilience patterns.
      *
      * @param userId identifier of the follower
      * @return the followed users ordered by identifier
@@ -136,6 +132,57 @@ public class UserService {
     }
 
     /**
+     * Gets user profile with failure simulation.
+     * Used by Feed Service to retrieve user details.
+     *
+     * @param userId identifier of the user
+     * @return the user profile
+     * @throws ResponseStatusException with 404 if the user does not exist
+     */
+    public User getUserProfile(String userId) {
+        return findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "User not found: " + userId));
+    }
+
+    /**
+     * Gets multiple user profiles with failure simulation.
+     * Used by Feed Service to retrieve multiple users.
+     *
+     * @param userIds list of user identifiers
+     * @return list of users
+     */
+    public List<User> getUserProfiles(List<String> userIds) {
+        return userIds.stream()
+                .map(users::get)
+                .filter(Objects::nonNull)
+                .sorted(Comparator.comparing(User::id))
+                .toList();
+    }
+
+    /**
+     * Gets follower count with failure simulation.
+     *
+     * @param userId identifier of the user
+     * @return count of followers
+     */
+    public long getFollowerCount(String userId) {
+        requireExists(userId);
+        return following.values().stream()
+                .filter(ids -> ids.contains(userId))
+                .count();
+    }
+
+    /**
+     * Validates user existence with failure simulation.
+     *
+     * @param userId identifier of the user
+     * @return true if user exists, false otherwise
+     */
+    public boolean validateUserExists(String userId) {
+        return users.containsKey(userId);
+    }
+
+    /**
      * Ensures a user exists.
      *
      * @param id identifier of the user
@@ -147,3 +194,4 @@ public class UserService {
         }
     }
 }
+

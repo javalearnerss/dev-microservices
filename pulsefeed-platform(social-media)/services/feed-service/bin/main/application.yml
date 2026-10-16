@@ -1,0 +1,126 @@
+server:
+  port: 8083
+  servlet:
+    context-path: /feed-service
+
+spring:
+  application:
+    name: feed-service
+  cloud:
+    openfeign:
+      client:
+        config:
+          post-service:
+            # HTTP client timeouts (in milliseconds)
+            connectTimeout: 500
+            readTimeout: 2000
+          user-service:
+            connectTimeout: 500
+            readTimeout: 2000
+
+services:
+  user-service:
+    url: ${USER_SERVICE_URL:http://localhost:8081/user-service}
+  post-service:
+    url: ${POST_SERVICE_URL:http://localhost:8082/post-service}
+
+# Resilience4j Configuration - Production settings
+resilience4j:
+  retry:
+    instances:
+      post-service:
+        max-attempts: 3
+        wait-duration: 100ms
+        enable-exponential-backoff: true
+        exponential-backoff-multiplier: 2.0
+        # Retry only on transient failures; retry exceptions depend on your HTTP client
+        # For Spring Cloud OpenFeign with HttpClient or OkHttp backend:
+        # - java.io.IOException (connection issues)
+        # - java.util.concurrent.TimeoutException (request timeout)
+        # - org.springframework.web.client.ResourceAccessException
+        # For Feign with deliberate retry exceptions:
+        # - feign.RetryableException
+        retry-exceptions:
+          - java.io.IOException
+          - java.util.concurrent.TimeoutException
+          - org.springframework.web.client.ResourceAccessException
+        # Do not retry permanent errors (4xx client errors)
+        ignore-exceptions:
+          - feign.FeignException$BadRequest
+          - feign.FeignException$NotFound
+          - feign.FeignException$Unauthorized
+          - feign.FeignException$Forbidden
+          - java.lang.IllegalArgumentException
+
+  circuitbreaker:
+    instances:
+      post-service:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        minimum-number-of-calls: 3
+        failure-rate-threshold: 50.0
+        slow-call-rate-threshold: 50.0
+        slow-call-duration-threshold: 1s
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+        # Record the same transient failures that are retryable
+        record-exceptions:
+          - java.io.IOException
+          - java.util.concurrent.TimeoutException
+          - org.springframework.web.client.ResourceAccessException
+        # Ignore permanent errors; the circuit breaker should not trip on client errors
+        ignore-exceptions:
+          - feign.FeignException$BadRequest
+          - feign.FeignException$NotFound
+          - feign.FeignException$Unauthorized
+          - feign.FeignException$Forbidden
+          - java.lang.IllegalArgumentException
+
+  bulkhead:
+    instances:
+      post-service:
+        max-concurrent-calls: 10
+        max-wait-duration: 1s
+        writeable-stack-trace-enabled: true
+
+  timelimiter:
+    instances:
+      post-service:
+        # Timeout for individual resilience4j-wrapped calls
+        # This is in addition to HTTP client timeouts; the stricter limit applies
+        timeout-duration: 2s
+        cancel-running-future: true
+
+# Actuator and management configuration for observability
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,circuitbreakers,retries,bulkheads,timelimiters
+  endpoint:
+    health:
+      show-details: always
+    circuitbreakers:
+      enabled: true
+    retries:
+      enabled: true
+    bulkheads:
+      enabled: true
+    timelimiters:
+      enabled: true
+  health:
+    circuitbreakers:
+      enabled: true
+    ratelimiters:
+      enabled: true
+
+# Logging Configuration
+logging:
+  level:
+    root: INFO
+    in.javalearners.pulsefeed.feed: DEBUG
+    in.javalearners.pulsefeed.feed.config: DEBUG
+    in.javalearners.pulsefeed.feed.client: DEBUG
+    io.github.resilience4j: INFO
+    org.springframework.cloud.openfeign: DEBUG
