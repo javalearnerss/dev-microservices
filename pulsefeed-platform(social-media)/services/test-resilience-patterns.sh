@@ -11,6 +11,9 @@ POST_SERVICE="${POST_SERVICE_URL:-http://localhost:8082/post-service}"
 POST_CONTROL="${POST_SERVICE}/api/management/failure-simulator"
 FEED_REQUEST="${FEED_SERVICE}/api/feed/user-alex"
 SCENARIO="${1:-help}"
+BULKHEAD_RESULTS=""
+BULKHEAD_CB_STATE="UNKNOWN"
+BULKHEAD_CB_BLOCKED=0
 
 usage() {
     cat <<'EOF'
@@ -49,6 +52,8 @@ summarize_circuit_breaker() {
     state=${state:-UNKNOWN}
     blocked=${blocked:-0}
     slow_failed=${slow_failed:-0}
+    BULKHEAD_CB_STATE="$state"
+    BULKHEAD_CB_BLOCKED="$blocked"
 
     echo "Circuit Breaker: ${state}"
     echo "Slow failed calls: ${slow_failed}"
@@ -77,6 +82,9 @@ cleanup() {
         printf "\n"
         echo "Could not reset Post Service simulator. Check that Post Service is running, then call:"
         echo "  curl -X POST \"${POST_CONTROL}/reset\""
+    fi
+    if [ -n "$BULKHEAD_RESULTS" ]; then
+        rm -f -- "$BULKHEAD_RESULTS"
     fi
 }
 
@@ -132,22 +140,54 @@ case "$SCENARIO" in
         ;;
 
     bulkhead)
-        echo "Add 3 seconds of Post Service latency and send 15 concurrent Feed requests."
-        echo "Fast 503s may come from an open Circuit Breaker; slower 503s may follow Post Service timeouts and retries."
-        post_control "${POST_CONTROL}/slowness/start?delayMs=3000"
+        breaker_snapshot=$(curl --silent --show-error "${FEED_SERVICE}/actuator/circuitbreakers") || exit 1
+        breaker_state=$(printf '%s\n' "$breaker_snapshot" | sed -n 's/.*"state"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+        if [ "$breaker_state" != "CLOSED" ]; then
+            echo "Cannot isolate the bulkhead while the Circuit Breaker is ${breaker_state:-UNKNOWN}."
+            echo "Restart Feed Service to close/reset the breaker, then rerun this scenario."
+            exit 1
+        fi
+        echo "Add 1.5 seconds of Post Service latency and send 15 concurrent Feed requests."
+        echo "Bulkhead limit: 10 concurrent calls; wait limit: 1 second. Feign timeout: 2 seconds."
+        echo "Feed first looks up following users, then calls Post Service. Total time includes both calls."
+        echo "The 2-second Feign timeout applies only to the Post Service call; bulkhead wait is up to 1 second."
+        post_control "${POST_CONTROL}/reset" >/dev/null
+        post_control "${POST_CONTROL}/slowness/start?delayMs=1500"
         echo
+        BULKHEAD_RESULTS=$(mktemp)
         for i in $(seq 1 15); do
             (
-                curl --silent --show-error --output /dev/null \
-                    --write-out "Request ${i}: HTTP %{http_code}, %{time_total}s\n" \
-                    "$FEED_REQUEST" || true
+                result=$(curl --silent --show-error --output /dev/null \
+                    --write-out '%{http_code} %{time_total}' "$FEED_REQUEST" 2>&1) || true
+                read -r status duration <<< "$result"
+                printf '%s %s %s\n' "$i" "${status:-000}" "${duration:-0}" >> "$BULKHEAD_RESULTS"
             ) &
         done
         wait
+        admitted=0
+        feed_failed=0
+        while read -r request_id status duration; do
+            if [[ "$status" =~ ^2[0-9][0-9]$ ]]; then
+                echo "Request ${request_id}: SUCCEEDED — reached Post Service (total Feed time ${duration}s, including User Service lookup)."
+                admitted=$((admitted + 1))
+            else
+                echo "Request ${request_id}: FAILED — HTTP ${status} after ${duration}s total (includes User Service lookup)."
+                feed_failed=$((feed_failed + 1))
+            fi
+        done < <(sort -n "$BULKHEAD_RESULTS")
         echo
         echo "Resilience result:"
         summarize_circuit_breaker
-        echo "Bulkhead actuator endpoint lists configured instances; it does not provide rejection counts."
+        simulator_status=$(get_status)
+        post_calls=$(printf '%s\n' "$simulator_status" | sed -n 's/.*Total Requests Received: *\([0-9][0-9]*\).*/\1/p')
+        post_calls=${post_calls:-0}
+        echo "Post Service received ${post_calls} request(s); ${admitted} Feed request(s) succeeded; ${feed_failed} Feed request(s) failed."
+        if [ "$BULKHEAD_CB_BLOCKED" -eq 0 ] && [ "$post_calls" -eq "$admitted" ] && [ "$feed_failed" -gt 0 ]; then
+            echo "Conclusion: ${feed_failed} request(s) were rejected before reaching Post Service, with no Circuit Breaker rejections. This run demonstrates the bulkhead limit."
+            echo "The failed requests' total time includes the User Service lookup plus the bulkhead's permit wait."
+        else
+            echo "Conclusion: this run did not isolate bulkhead rejections; compare Post Service requests with Circuit Breaker rejections above."
+        fi
         ;;
 
     *)
