@@ -2,6 +2,7 @@
 
 When One Microservice Fails: How Do You Keep the Rest Alive?
 Timeouts, retries, circuit breakers, and bulkheads explained through a real-world story
+The complete implementation is available in the [PulseFeed resilience patterns repository](https://github.com/javalearnerss/dev-microservices/tree/main/spring-boot-resilience-patterns/services). Instructions for running and testing the services are at the end of this article.
 Microservices make it possible to build and deploy applications as independent services. But independence has a limit: services still depend on one another to complete requests.
 What happens when one service becomes slow? Should the services calling it keep waiting? Should they retry? And how do we stop one struggling service from bringing down the rest of the application?
 Let's explore these questions through Pulse, a fictional social media application, and follow one request from the moment a user opens their feed to the moment a dependency failure threatens the entire system.
@@ -399,4 +400,11 @@ curl -X POST "http://localhost:8082/post-service/api/management/failure-simulato
 ```
 
 
----
+
+You can also run the included shell script to exercise the resilience scenarios one at a time:
+
+```bash
+bash ./test-resilience-patterns.sh retry
+```
+
+Replace `retry` with `timeout`, `circuit-breaker`, or `bulkhead` to try another scenario. The script controls the failure simulator directly on Post Service and resets it when the run ends. Restart Feed Service before the bulkhead scenario if its Circuit Breaker is not closed.
