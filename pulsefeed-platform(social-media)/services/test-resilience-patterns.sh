@@ -114,7 +114,7 @@ case "$SCENARIO" in
     circuit-breaker)
         echo "Inject repeated Post Service failures, then observe the Feed Service breaker."
         echo "Restart Feed Service first if you need to ensure the breaker starts CLOSED."
-        post_control "${POST_CONTROL}/failure/start?count=20"
+        post_control "${POST_CONTROL}/failure/start?count=15"
         echo
         for i in 1 2 3 4 5; do
             printf "\n================================================================\n"
