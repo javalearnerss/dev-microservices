@@ -9,87 +9,76 @@ Client → Feed Service → User Service (who the user follows)
                      → Post Service (posts by those authors)
 ```
 
-The Feed Service applies its resilience decorator to the four Post Service client operations: posts by author IDs, posts by post IDs, post count by author, and posts by author. The User Service client calls are direct and currently do not have a failure simulator.
+`FeedService` orchestrates requests. `ResilientPostService` applies resilience policies to the five Post Service business operations: posts by author IDs, post detail, posts by post IDs, post count by author, and posts by author. Post Service simulator controls are called directly on Post Service, outside Feed Service. User Service client calls are direct and currently do not have a failure simulator.
 
 ## Current resilience settings
 
-The implementation is in `feed-service/src/main/java/in/javalearners/pulsefeed/feed/config/ResilienceConfig.java` and `ResilienceDecoratorConfig.java`.
+Policy values are configured in `feed-service/src/main/resources/application.yml`. `ResilientPostService.java` applies Retry, CircuitBreaker, and Bulkhead annotations to Post Service business calls. The `ResilienceConfig.java` registry listeners, when enabled, only log policy additions and removals; they do not define policies or add metrics.
 
 | Pattern | Current behavior |
 |---|---|
-| Retry | Up to 3 total attempts, with exponential backoff starting at 100 ms; `TimeoutException` is excluded from retry. |
-| Circuit breaker | Opens at a 50% failure or slow-call rate; minimum 3 calls, a 10-call sliding window, and 10 seconds open. It permits 3 calls in half-open state. |
+| Retry | Up to 3 total attempts, starting with a 100 ms wait and exponential backoff multiplier of 2. Retries are configured for selected transient I/O, timeout, and HTTP 5xx exceptions; common client errors such as 400 and 404 are ignored. |
+| Circuit breaker | Count-based window of 10 calls, minimum 3 calls, 50% failure and slow-call thresholds, and a 1-second slow-call threshold. It stays open for 10 seconds, then permits 3 half-open calls. |
 | Bulkhead | Up to 10 concurrent calls; a caller can wait up to 1 second for a slot. |
-| Time limiter | A 2-second `TimeLimiter` bean is configured, but the current Post Service decorator does not apply it. Do not expect a two-second timeout from that configuration as currently wired. |
+| HTTP client timeouts | OpenFeign is configured with a 500 ms connection timeout and 2-second read timeout. These apply to HTTP calls independently of the Resilience4j TimeLimiter. |
+| TimeLimiter | A 2-second policy is configured in `application.yml`, but the current Post Service decorator does not apply it. |
 
-The effective decorator nesting is Retry → Circuit Breaker → Bulkhead → downstream call. Each retry attempt therefore passes through the circuit breaker and bulkhead. The code does not currently make the synchronous Feign call cancellable through the configured TimeLimiter.
+The resilience annotations are applied on the wrapper methods so FeedService stays focused on orchestration. The configured TimeLimiter is not wired into these synchronous Feign calls; the HTTP client's read timeout still limits an individual response wait. Total request duration can exceed two seconds when retries and backoff occur.
 
-## Failure simulator controller reference
+If retries are exhausted or the circuit is open, `ResilientPostService` returns a controlled HTTP 503 through Spring's `ResponseStatusException`. Downstream 4xx responses retain their status. This avoids making a service outage look like a valid empty feed or a zero count.
 
-The Post Service controller is mounted at `/api/management/failure-simulator`; its base URL is `http://localhost:8082/post-service`. The Feed Service proxies the same controls under `/api/feed/management/post-service`; use `http://localhost:8083/feed-service` as its base URL. Every method in `FailureSimulatorController` is represented below:
+## Control the Post Service simulator directly
 
-| Controller method | HTTP route (Feed Service proxy) | Behavior |
+The failure simulator belongs to Post Service and is available at `http://localhost:8082/post-service/api/management/failure-simulator`. Feed Service has no proxy routes for these controls. The controller provides six operations:
+
+| Method | HTTP route | Behavior |
 |---|---|---|
-| `startSlowness(delayMs)` | `POST /api/feed/management/post-service/slowness/start?delayMs=500` | Enables delay before simulated Post Service operations. `delayMs` defaults to 500. |
-| `stopSlowness()` | `POST /api/feed/management/post-service/slowness/stop` | Disables simulated delay. |
-| `startFailure(failureCount)` | `POST /api/feed/management/post-service/failure/start?count=5` | Enables failures for the next `count` simulated calls. `count` defaults to 5. |
-| `stopFailure()` | `POST /api/feed/management/post-service/failure/stop` | Disables failure simulation and clears the remaining failure count. |
-| `getStatus()` | `GET /api/feed/management/post-service/status` | Returns whether delay and failure simulation are enabled, the configured delay, and the total simulated calls received. |
-| `reset()` | `POST /api/feed/management/post-service/reset` | Disables delay and failures, restores the 500 ms default delay, clears the failure count, and resets the simulator's request counter. |
+| `startSlowness(delayMs)` | `POST /api/management/failure-simulator/slowness/start?delayMs=500` | Enables delay before simulated Post Service operations. `delayMs` defaults to 500. |
+| `stopSlowness()` | `POST /api/management/failure-simulator/slowness/stop` | Disables simulated delay. |
+| `startFailure(failureCount)` | `POST /api/management/failure-simulator/failure/start?count=5` | Fails the next `count` simulated calls. `count` defaults to 5. |
+| `stopFailure()` | `POST /api/management/failure-simulator/failure/stop` | Disables simulated failures and clears the remaining failure count. |
+| `getStatus()` | `GET /api/management/failure-simulator/status` | Returns simulator flags, delay, and total simulated requests. |
+| `reset()` | `POST /api/management/failure-simulator/reset` | Turns off simulations, restores the 500 ms default delay, and resets counters. |
 
-The direct Post Service routes have the same suffixes below `/api/management/failure-simulator`. The Feed Service proxy routes call those management methods directly; they do not consume the resilience-wrapped business-call path.
-
-### Exercise every simulator method
-
-This complete lifecycle uses all six controls: start and stop delay, start and stop failures, inspect status, and reset. It also makes a request through a Feed Service business route so the simulated call counter changes.
+Use these direct calls to control simulation, then call a Feed Service business endpoint to observe its resilience behavior:
 
 ```bash
-BASE="http://localhost:8083/feed-service/api/feed/management/post-service"
+POST_SERVICE="http://localhost:8082/post-service/api/management/failure-simulator"
 
-# Start delay and confirm the simulator state.
-curl -X POST "$BASE/slowness/start?delayMs=750"
-curl "$BASE/status"
-
-# Stop delay; then start and stop a finite failure simulation.
-curl -X POST "$BASE/slowness/stop"
-curl -X POST "$BASE/failure/start?count=1"
-curl "$BASE/status"
+curl -X POST "$POST_SERVICE/failure/start?count=2"
+curl "$POST_SERVICE/status"
 curl "http://localhost:8083/feed-service/api/feed/posts/batch?ids=replace-with-a-real-post-id"
-curl -X POST "$BASE/failure/stop"
-
-# Inspect final state and restore all simulator fields and counters.
-curl "$BASE/status"
-curl -X POST "$BASE/reset"
-curl "$BASE/status"
+curl -X POST "$POST_SERVICE/failure/stop"
+curl -X POST "$POST_SERVICE/reset"
 ```
 
 Replace `replace-with-a-real-post-id` with an ID returned by `GET http://localhost:8082/post-service/api/posts`. The batch call may return an empty list for a nonexistent ID; it still exercises the simulated Post Service method.
 
 ## Run the supported Post Service experiments
 
-The examples below use the Feed Service's management routes to control the Post Service simulator. Feed requests go through the resilience decorator. Run one experiment at a time and reset the simulator afterward.
+The examples below control the Post Service simulator directly, then send business requests through Feed Service. Run one experiment at a time and reset the simulator afterward.
 
 ### Retry after injected failures
 
 Configure two failures, then request posts. With the default three total attempts, the request can succeed on its third attempt, provided the circuit breaker has not opened from prior traffic.
 
 ```bash
-curl -X POST "http://localhost:8083/feed-service/api/feed/management/post-service/failure/start?count=2"
-curl "http://localhost:8083/feed-service/api/feed/posts/batch?ids=post-1"
-curl -X POST "http://localhost:8083/feed-service/api/feed/management/post-service/reset"
+curl -X POST "http://localhost:8082/post-service/api/management/failure-simulator/failure/start?count=2"
+curl "http://localhost:8083/feed-service/api/feed/user-alex"
+curl -X POST "http://localhost:8082/post-service/api/management/failure-simulator/reset"
 ```
 
 The seeded post identifiers are generated at startup, so `post-1` is only an example and may not exist. A missing ID can still return an empty result after a successful call. Use `/api/posts` on the Post Service to discover the generated IDs.
 
 ### Circuit breaker
 
-Inject repeated failures and make calls through a Feed Service endpoint. The breaker evaluates calls made by the Post Service decorator; because retries are enabled, a single outer request can produce multiple recorded failures. Existing breaker state and traffic affect when the threshold is reached. Inspect `/feed-service/actuator/circuitbreakers` and allow the 10-second open interval before checking recovery.
+Inject repeated failures and make calls through a Feed Service endpoint. The breaker evaluates calls made by the resilient wrapper; retries may produce multiple downstream attempts for one outer request. Existing breaker state and traffic affect when the threshold is reached. Inspect `/feed-service/actuator/circuitbreakers` and allow the 10-second open interval before checking recovery.
 
 ```bash
-curl -X POST "http://localhost:8083/feed-service/api/feed/management/post-service/failure/start?count=20"
-curl "http://localhost:8083/feed-service/api/feed/posts/batch?ids=post-1"
+curl -X POST "http://localhost:8082/post-service/api/management/failure-simulator/failure/start?count=20"
+curl "http://localhost:8083/feed-service/api/feed/user-alex"
 curl "http://localhost:8083/feed-service/actuator/circuitbreakers"
-curl -X POST "http://localhost:8083/feed-service/api/feed/management/post-service/reset"
+curl -X POST "http://localhost:8082/post-service/api/management/failure-simulator/reset"
 ```
 
 ### Bulkhead under concurrency
@@ -97,9 +86,9 @@ curl -X POST "http://localhost:8083/feed-service/api/feed/management/post-servic
 Add a delay and issue more than 10 concurrent Feed Service requests to a Post Service-backed operation. The bulkhead permits at most 10 active calls and waits up to one second for a slot; requests beyond that capacity may fail. Exact outcomes depend on timing and the current circuit-breaker state.
 
 ```bash
-curl -X POST "http://localhost:8083/feed-service/api/feed/management/post-service/slowness/start?delayMs=3000"
-# In another shell, send concurrent calls to /feed-service/api/feed/posts/batch?ids=post-1
-curl -X POST "http://localhost:8083/feed-service/api/feed/management/post-service/reset"
+curl -X POST "http://localhost:8082/post-service/api/management/failure-simulator/slowness/start?delayMs=3000"
+# In another shell, send concurrent calls to /feed-service/api/feed/user-alex
+curl -X POST "http://localhost:8082/post-service/api/management/failure-simulator/reset"
 ```
 
 Reset clears simulated delay and failures and restores the simulator's default delay. If a test is interrupted, reset before continuing.
@@ -108,8 +97,8 @@ Reset clears simulated delay and failures and restores the simulator's default d
 
 - There is a failure simulator only in the Post Service. User Service has no management controller or simulated delay/failure behavior in the current source.
 - Feed Service exposes three business routes: feed, follower count, and batch posts. Earlier guides that list eight Feed Service business routes do not match the current controller.
-- The Feed Service resilience decorator wraps Post Service calls, not User Service calls.
-- A two-second TimeLimiter is created but is not connected to the decorator. Slow calls are not currently guaranteed to stop after two seconds.
+- `ResilientPostService` wraps Post Service business calls, not User Service calls or simulator-management requests.
+- A two-second TimeLimiter policy is configured but is not connected to the decorator. The HTTP client separately has a two-second read timeout; retry attempts and backoff can make the overall call take longer.
 - Simulated post delay and failure behavior is attached to post lookup operations used by the Feed Service. Basic list/create/delete routes do not all share that simulation path.
 - Circuit-breaker state persists across requests until recovery or service restart. Resetting the failure simulator does not reset the circuit breaker.
 
@@ -122,8 +111,9 @@ Reset clears simulated delay and failures and restores the simulator's default d
 | Feed is empty | The user may follow nobody, or no posts may exist for followed authors. Seed data includes Alex, Sam, Jordan, and sample posts. |
 | Batch response is empty | Post IDs are generated UUIDs; list posts on the Post Service to obtain current IDs. |
 | Calls fail fast after a failure test | The circuit breaker may be OPEN. Check the actuator state and wait through its 10-second open interval. |
-| A slow request takes longer than two seconds | This is expected with the current wiring: the TimeLimiter bean is not applied to the synchronous client decorator. |
+| A request takes longer than two seconds overall | Each HTTP read has a two-second timeout, but retries and backoff can extend the overall duration; the configured TimeLimiter is not applied by the decorator. |
 
 ## Test scripts
 
-`test-resilience-patterns.ps1` and `test-resilience-patterns.sh` are separate PowerShell and Bash entry points. They currently contain assumptions about User Service failure simulation and timeout behavior that do not match the implementation above. Treat their output as illustrative until those scripts are updated to match the current service behavior.
+Run `test-resilience-patterns.sh <timeout|retry|circuit-breaker|bulkhead>` to exercise one scenario at a time. It calls Post Service directly for simulator control and calls Feed Service only for the business request. Restart Feed Service before the circuit-breaker or bulkhead scenario if you need a clean breaker state.
+

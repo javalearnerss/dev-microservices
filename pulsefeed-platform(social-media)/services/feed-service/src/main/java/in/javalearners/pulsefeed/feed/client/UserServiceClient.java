@@ -11,15 +11,14 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
 /**
- * Feign client for calling the user service over HTTP.
- * All methods trigger the User Service failure simulator for testing resilience patterns.
+ * Feign client for direct User Service calls over HTTP.
+ * These calls do not currently have a Resilience4j wrapper or failure simulator.
  */
 @FeignClient(name = "user-service", url = "${services.user-service.url}")
 public interface UserServiceClient {
 
     /**
      * Retrieves the users that the given user follows.
-     * Triggers failure simulator in User Service.
      *
      * @param userId identifier of the follower
      * @return users followed by the given user
@@ -28,7 +27,7 @@ public interface UserServiceClient {
     List<User> findFollowing(@PathVariable("userId") String userId);
 
     /**
-     * Gets follower count with failure simulation.
+     * Gets follower count.
      *
      * @param userId identifier of the user
      * @return follower count

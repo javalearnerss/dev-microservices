@@ -53,14 +53,6 @@ All URLs below include the service context path.
 | GET | `/api/feed/{userId}` | Build a user's feed |
 | GET | `/api/feed/user/{userId}/followers/count` | Get a user's follower count |
 | GET | `/api/feed/posts/batch?ids=id1,id2` | Get posts by ID |
-| POST | `/api/feed/management/post-service/slowness/start?delayMs=3000` | Turn on Post Service delay (default 500 ms) |
-| POST | `/api/feed/management/post-service/slowness/stop` | Turn off Post Service delay |
-| POST | `/api/feed/management/post-service/failure/start?count=3` | Make the next number of simulated Post Service calls fail |
-| POST | `/api/feed/management/post-service/failure/stop` | Turn off failure simulation |
-| GET | `/api/feed/management/post-service/status` | Read simulator state |
-| POST | `/api/feed/management/post-service/reset` | Reset the Post Service simulator |
-
-Feed Service management routes proxy controls to the Post Service. They do not pass through the resilience decorator.
 
 ### User Service — `http://localhost:8081/user-service`
 
@@ -97,10 +89,12 @@ Feed Service management routes proxy controls to the Post Service. They do not p
 | GET | `/api/management/failure-simulator/status` | Read simulator state |
 | POST | `/api/management/failure-simulator/reset` | Reset the simulator |
 
+Call these simulator routes directly on Post Service at `http://localhost:8082/post-service`; Feed Service does not proxy simulator controls.
+
 ## Monitoring
 
 The Feed Service exposes Spring Boot Actuator endpoints under `http://localhost:8083/feed-service/actuator`. Useful paths include `/health`, `/metrics`, `/circuitbreakers`, `/retries`, `/bulkheads`, and `/timelimiters`. User and Post Services expose `/actuator/health`, `/actuator/info`, and `/actuator/metrics` under their context paths.
 
 ## More detail
 
-See [RESILIENCE-GUIDE.md](RESILIENCE-GUIDE.md) for the actual resilience configuration, failure-simulation examples, and implementation notes. The repository also includes `test-resilience-patterns.ps1` and `test-resilience-patterns.sh`; review the guide's current-implementation notes before relying on their expected outcomes.
+See [RESILIENCE-GUIDE.md](RESILIENCE-GUIDE.md) for the actual resilience configuration, direct Post Service simulation commands, and implementation notes. Run `test-resilience-patterns.sh <timeout|retry|circuit-breaker|bulkhead>` to exercise one scenario at a time; it sends simulator controls directly to Post Service.

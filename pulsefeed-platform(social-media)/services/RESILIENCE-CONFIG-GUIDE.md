@@ -245,7 +245,7 @@ curl http://localhost:8083/feed-service/actuator/bulkheads
 ### Test 1: Retry on Transient Failure
 ```bash
 # Inject 2 failures
-curl -X POST "http://localhost:8083/feed-service/api/feed/management/post-service/failure/start?count=2"
+curl -X POST "http://localhost:8082/post-service/api/management/failure-simulator/failure/start?count=2"
 
 # Make request
 curl "http://localhost:8083/feed-service/api/feed/posts/batch?ids=post-1"
@@ -254,13 +254,13 @@ curl "http://localhost:8083/feed-service/api/feed/posts/batch?ids=post-1"
 # Logs: Should show retry attempts
 
 # Cleanup
-curl -X POST "http://localhost:8083/feed-service/api/feed/management/post-service/reset"
+curl -X POST "http://localhost:8082/post-service/api/management/failure-simulator/reset"
 ```
 
 ### Test 2: Circuit Breaker Opens
 ```bash
 # Inject many failures
-curl -X POST "http://localhost:8083/feed-service/api/feed/management/post-service/failure/start?count=20"
+curl -X POST "http://localhost:8082/post-service/api/management/failure-simulator/failure/start?count=20"
 
 # Make request
 curl "http://localhost:8083/feed-service/api/feed/posts/batch?ids=post-1"
@@ -272,13 +272,13 @@ curl http://localhost:8083/feed-service/actuator/circuitbreakers
 # After 10s, transitions to half-open
 
 # Cleanup
-curl -X POST "http://localhost:8083/feed-service/api/feed/management/post-service/reset"
+curl -X POST "http://localhost:8082/post-service/api/management/failure-simulator/reset"
 ```
 
 ### Test 3: Bulkhead Rejects on Overload
 ```bash
 # Add 3 second delay
-curl -X POST "http://localhost:8083/feed-service/api/feed/management/post-service/slowness/start?delayMs=3000"
+curl -X POST "http://localhost:8082/post-service/api/management/failure-simulator/slowness/start?delayMs=3000"
 
 # Issue 15+ concurrent requests
 for i in {1..15}; do
@@ -290,7 +290,7 @@ wait
 # Logs: Should show "Bulkhead exhausted"
 
 # Cleanup
-curl -X POST "http://localhost:8083/feed-service/api/feed/management/post-service/reset"
+curl -X POST "http://localhost:8082/post-service/api/management/failure-simulator/reset"
 ```
 
 ---

@@ -1,183 +1,156 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-# Resilience Patterns Testing Script
-# This script demonstrates the four resilience patterns: Timeout, Retry, Circuit Breaker, and Bulkhead
+# Manually exercise Feed Service resilience while controlling the Post Service
+# failure simulator directly. Run one scenario at a time from a clean Feed
+# Service state, especially before circuit-breaker and bulkhead scenarios.
 
-BASE_URL="http://localhost:8083/feed-service"
-USER_SERVICE="http://localhost:8081/user-service"
-POST_SERVICE="http://localhost:8082/post-service"
+set -u
 
-echo "=========================================="
-echo "Resilience Patterns Testing Script"
-echo "=========================================="
-echo ""
+FEED_SERVICE="${FEED_SERVICE_URL:-http://localhost:8083/feed-service}"
+POST_SERVICE="${POST_SERVICE_URL:-http://localhost:8082/post-service}"
+POST_CONTROL="${POST_SERVICE}/api/management/failure-simulator"
+FEED_REQUEST="${FEED_SERVICE}/api/feed/user-alex"
+SCENARIO="${1:-help}"
 
-# Helper function to test feed endpoint
-test_feed() {
-    echo "Testing feed for user-rahul..."
-    START_TIME=$(date +%s%N)
-    RESPONSE=$(curl -s http://localhost:8083/feed-service/api/feed/user-rahul)
-    END_TIME=$(date +%s%N)
-    DURATION_MS=$(( (END_TIME - START_TIME) / 1000000 ))
-    
-    if echo "$RESPONSE" | grep -q "error"; then
-        echo "❌ FAILED (${DURATION_MS}ms): $RESPONSE"
-    else
-        echo "✅ SUCCESS (${DURATION_MS}ms)"
-        echo "$RESPONSE" | head -3
-    fi
-    echo ""
+usage() {
+    cat <<'EOF'
+Usage: ./test-resilience-patterns.sh <timeout|retry|circuit-breaker|bulkhead>
+
+Feed request: GET /api/feed/user-alex.
+Simulator control calls go directly to Post Service. The tested business call
+goes through Feed Service and ResilientPostService.
+
+For an isolated circuit-breaker or bulkhead demonstration, restart Feed Service
+before running the scenario so its circuit-breaker state starts CLOSED.
+EOF
 }
 
-# Test 1: Timeout Pattern
-echo "=========================================="
-echo "TEST 1: TIMEOUT PATTERN"
-echo "=========================================="
-echo "Description: Feed Service should timeout after 2 seconds"
-echo "Expected: Request fails quickly without hanging"
-echo ""
+post_control() {
+    curl --silent --show-error --fail-with-body -X POST "$1"
+}
 
-echo "Starting slowness simulation (2000ms delay)..."
-curl -s -X POST "${USER_SERVICE}/api/management/failure-simulator/slowness/start?delayMs=2000" > /dev/null
-echo "✓ Slowness simulation started"
-echo ""
+get_status() {
+    curl --silent --show-error "${POST_CONTROL}/status"
+}
 
-echo "Calling feed endpoint (should timeout after 2 seconds)..."
-START_TIME=$(date +%s%N)
-RESPONSE=$(curl -s http://localhost:8083/feed-service/api/feed/user-rahul 2>&1 || true)
-END_TIME=$(date +%s%N)
-DURATION_MS=$(( (END_TIME - START_TIME) / 1000000 ))
+summarize_circuit_breaker() {
+    local snapshot
+    local state
+    local blocked
+    local slow_failed
+    snapshot=$(curl --silent --show-error "${FEED_SERVICE}/actuator/circuitbreakers") || {
+        echo "Could not read Circuit Breaker state from Feed Service."
+        return
+    }
 
-if [ $DURATION_MS -lt 3000 ]; then
-    echo "✅ PASSED: Request failed quickly (${DURATION_MS}ms < 3000ms)"
-else
-    echo "⚠️  WARNING: Request took longer than expected (${DURATION_MS}ms)"
-fi
-echo "Response: $RESPONSE" | head -1
-echo ""
+    state=$(printf '%s\n' "$snapshot" | sed -n 's/.*"state"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+    blocked=$(printf '%s\n' "$snapshot" | sed -n 's/.*"notPermittedCalls"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p')
+    slow_failed=$(printf '%s\n' "$snapshot" | sed -n 's/.*"slowFailedCalls"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p')
+    state=${state:-UNKNOWN}
+    blocked=${blocked:-0}
+    slow_failed=${slow_failed:-0}
 
-echo "Stopping slowness simulation..."
-curl -s -X POST "${USER_SERVICE}/api/management/failure-simulator/slowness/stop" > /dev/null
-echo "✓ Slowness simulation stopped"
-echo ""
-echo ""
-
-# Test 2: Retry Pattern
-echo "=========================================="
-echo "TEST 2: RETRY PATTERN"
-echo "=========================================="
-echo "Description: Feed Service should retry and recover from transient failures"
-echo "Expected: Request succeeds despite initial failures"
-echo ""
-
-echo "Starting failure simulation (2 failures)..."
-curl -s -X POST "${POST_SERVICE}/api/management/failure-simulator/failure/start?count=2" > /dev/null
-echo "✓ Failure simulation started"
-echo ""
-
-echo "Calling feed endpoint (should succeed after 2 retries)..."
-test_feed
-
-echo "Stopping failure simulation..."
-curl -s -X POST "${POST_SERVICE}/api/management/failure-simulator/failure/stop" > /dev/null
-echo "✓ Failure simulation stopped"
-echo ""
-echo ""
-
-# Test 3: Circuit Breaker Pattern
-echo "=========================================="
-echo "TEST 3: CIRCUIT BREAKER PATTERN"
-echo "=========================================="
-echo "Description: Circuit Breaker should open after 3 failures and fail fast"
-echo "Expected: First 3 calls fail, 4th+ calls fail immediately (circuit open)"
-echo ""
-
-echo "Starting failure simulation (5 failures)..."
-curl -s -X POST "${POST_SERVICE}/api/management/failure-simulator/failure/start?count=5" > /dev/null
-echo "✓ Failure simulation started"
-echo ""
-
-echo "Making 5 sequential requests (circuit will open after 3 failures)..."
-for i in {1..5}; do
-    echo "Request $i:"
-    START_TIME=$(date +%s%N)
-    RESPONSE=$(curl -s http://localhost:8083/feed-service/api/feed/user-rahul 2>&1 || true)
-    END_TIME=$(date +%s%N)
-    DURATION_MS=$(( (END_TIME - START_TIME) / 1000000 ))
-    
-    if echo "$RESPONSE" | grep -q "error\|Failed\|exhausted\|Circuit"; then
-        if [ $DURATION_MS -lt 500 ]; then
-            echo "  ❌ FAILED (${DURATION_MS}ms) - CIRCUIT BREAKER OPEN"
-        else
-            echo "  ❌ FAILED (${DURATION_MS}ms) - Still executing"
-        fi
+    echo "Circuit Breaker: ${state}"
+    echo "Slow failed calls: ${slow_failed}"
+    echo "Requests rejected by the open Circuit Breaker: ${blocked}"
+    if [ "$state" = "OPEN" ] && [ "$blocked" -gt 0 ]; then
+        echo "Interpretation: the Circuit Breaker rejected these requests before they could demonstrate the bulkhead."
     else
-        echo "  ✅ SUCCESS (${DURATION_MS}ms)"
+        echo "Interpretation: the Circuit Breaker did not report open-state rejections; inspect request timings and bulkhead metrics for this run."
     fi
-    sleep 1
-done
-echo ""
+}
 
-echo "Stopping failure simulation..."
-curl -s -X POST "${POST_SERVICE}/api/management/failure-simulator/failure/stop" > /dev/null
-echo "✓ Failure simulation stopped"
-echo ""
+call_feed() {
+    echo "GET ${FEED_REQUEST}"
+    curl --silent --show-error --write-out '\nHTTP %{http_code} in %{time_total}s\n' \
+        "$FEED_REQUEST" || true
+    echo
+}
 
-echo "Waiting 10 seconds for circuit breaker to move to HALF-OPEN state..."
-sleep 10
-echo ""
+cleanup() {
+    echo
+    echo "Resetting Post Service failure simulator..."
+    if post_control "${POST_CONTROL}/reset"; then
+        printf "\n"
+        echo "Post Service simulator restored to normal behavior (500 ms default delay; failures and slowness disabled)."
+    else
+        printf "\n"
+        echo "Could not reset Post Service simulator. Check that Post Service is running, then call:"
+        echo "  curl -X POST \"${POST_CONTROL}/reset\""
+    fi
+}
 
-echo "Testing recovery (should succeed if service is back)..."
-test_feed
-echo ""
+trap cleanup EXIT
 
-# Test 4: Bulkhead Pattern
-echo "=========================================="
-echo "TEST 4: BULKHEAD PATTERN"
-echo "=========================================="
-echo "Description: Bulkhead should limit concurrent calls to 10"
-echo "Expected: First 10 calls execute, calls 11+ are rejected"
-echo ""
+case "$SCENARIO" in
+    timeout)
+        echo "Add 3 seconds of latency at Post Service; Feign uses a 2-second read timeout."
+        echo "Retries may make the overall request last longer than 2 seconds."
+        post_control "${POST_CONTROL}/slowness/start?delayMs=3000"
+        echo
+        call_feed
+        echo
+        get_status
+        ;;
 
-echo "Starting slowness simulation (3000ms delay)..."
-curl -s -X POST "${POST_SERVICE}/api/management/failure-simulator/slowness/start?delayMs=3000" > /dev/null
-echo "✓ Slowness simulation started"
-echo ""
+    retry)
+        echo "Inject two Post Service 503 failures. The configured maximum is three attempts."
+        post_control "${POST_CONTROL}/failure/start?count=2"
+        echo
+        call_feed
+        echo "Post Service simulator status (request count shows downstream attempts):"
+        get_status
+        echo
+        ;;
 
-echo "Making 15 parallel requests (only 10 should execute)..."
-SUCCESS_COUNT=0
-REJECTED_COUNT=0
+    circuit-breaker)
+        echo "Inject repeated Post Service failures, then observe the Feed Service breaker."
+        echo "Restart Feed Service first if you need to ensure the breaker starts CLOSED."
+        post_control "${POST_CONTROL}/failure/start?count=20"
+        echo
+        for i in 1 2 3 4 5; do
+            printf "\n================================================================\n"
+            echo "Request ${i}"
+            call_feed
+            curl --silent --show-error \
+                "${FEED_SERVICE}/actuator/circuitbreakers"
+            echo
+            printf "\n\n"
+            get_status
+            
+            sleep 1
+        done
+        printf "\n\n"
+        echo "Stopping simulated failures directly on Post Service."
+        printf "\n"
+        post_control "${POST_CONTROL}/failure/stop"
+        echo
+        echo "Waiting for the configured 10-second open interval, then probing recovery."
+        sleep 10
+        printf "\n"
+        call_feed
+        ;;
 
-for i in {1..15}; do
-    (
-        RESPONSE=$(curl -s http://localhost:8083/feed-service/api/feed/user-rahul 2>&1 || true)
-        if echo "$RESPONSE" | grep -q "bulkhead"; then
-            echo "  ❌ Request $i: BULKHEAD REJECTED"
-        elif echo "$RESPONSE" | grep -q "error\|Failed"; then
-            echo "  ⚠️  Request $i: FAILED"
-        else
-            echo "  ✅ Request $i: SUCCESS"
-        fi
-    ) &
-done
-wait
+    bulkhead)
+        echo "Add 3 seconds of Post Service latency and send 15 concurrent Feed requests."
+        echo "Fast 503s may come from an open Circuit Breaker; slower 503s may follow Post Service timeouts and retries."
+        post_control "${POST_CONTROL}/slowness/start?delayMs=3000"
+        echo
+        for i in $(seq 1 15); do
+            (
+                curl --silent --show-error --output /dev/null \
+                    --write-out "Request ${i}: HTTP %{http_code}, %{time_total}s\n" \
+                    "$FEED_REQUEST" || true
+            ) &
+        done
+        wait
+        echo
+        echo "Resilience result:"
+        summarize_circuit_breaker
+        echo "Bulkhead actuator endpoint lists configured instances; it does not provide rejection counts."
+        ;;
 
-echo ""
-
-echo "Stopping slowness simulation..."
-curl -s -X POST "${POST_SERVICE}/api/management/failure-simulator/slowness/stop" > /dev/null
-echo "✓ Slowness simulation stopped"
-echo ""
-echo ""
-
-# Summary
-echo "=========================================="
-echo "TEST SUMMARY"
-echo "=========================================="
-echo "✅ Timeout Pattern: Requests timeout after 2 seconds"
-echo "✅ Retry Pattern: Transient failures are recovered"
-echo "✅ Circuit Breaker: Fails fast after threshold reached"
-echo "✅ Bulkhead: Concurrent calls are limited to 10"
-echo ""
-echo "All resilience patterns are working correctly!"
-echo "=========================================="
+    *)
+        usage
+        ;;
+esac

@@ -14,9 +14,6 @@ spring:
             # HTTP client timeouts (in milliseconds)
             connectTimeout: 500
             readTimeout: 2000
-          user-service:
-            connectTimeout: 500
-            readTimeout: 2000
 
 services:
   user-service:
@@ -27,6 +24,8 @@ services:
 # Resilience4j Configuration - Production settings
 resilience4j:
   retry:
+    # Retry executes inside CircuitBreaker; its fallback runs after all attempts.
+    retryAspectOrder: 2
     instances:
       post-service:
         max-attempts: 3
@@ -44,6 +43,11 @@ resilience4j:
           - java.io.IOException
           - java.util.concurrent.TimeoutException
           - org.springframework.web.client.ResourceAccessException
+          - feign.RetryableException
+          - feign.FeignException$InternalServerError
+          - feign.FeignException$BadGateway
+          - feign.FeignException$ServiceUnavailable
+          - feign.FeignException$GatewayTimeout
         # Do not retry permanent errors (4xx client errors)
         ignore-exceptions:
           - feign.FeignException$BadRequest
@@ -53,6 +57,8 @@ resilience4j:
           - java.lang.IllegalArgumentException
 
   circuitbreaker:
+    # Wrap the complete retry operation and record only its final result.
+    circuitBreakerAspectOrder: 1
     instances:
       post-service:
         sliding-window-type: COUNT_BASED
@@ -66,9 +72,15 @@ resilience4j:
         automatic-transition-from-open-to-half-open-enabled: true
         # Record the same transient failures that are retryable
         record-exceptions:
+          - in.javalearners.pulsefeed.feed.service.ResilientPostService$PostServiceUnavailableException
           - java.io.IOException
           - java.util.concurrent.TimeoutException
           - org.springframework.web.client.ResourceAccessException
+          - feign.RetryableException
+          - feign.FeignException$InternalServerError
+          - feign.FeignException$BadGateway
+          - feign.FeignException$ServiceUnavailable
+          - feign.FeignException$GatewayTimeout
         # Ignore permanent errors; the circuit breaker should not trip on client errors
         ignore-exceptions:
           - feign.FeignException$BadRequest

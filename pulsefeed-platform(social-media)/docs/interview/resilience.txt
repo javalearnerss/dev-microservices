@@ -1,0 +1,65 @@
+Top 20 Microservice Resilience Interview Questions
+Fundamentals and architecture
+1. A downstream microservice becomes slow but continues returning successful responses. How would you prevent the calling service from exhausting its threads and resources?
+Cover: connection timeout, response/read timeout, end-to-end deadline, bounded concurrency, bulkhead, and graceful degradation.
+
+2. Explain the difference between Timeout, Retry, Circuit Breaker, and Bulkhead. Why are all four needed?
+Cover: each pattern's responsibility, limitations, and how they complement one another.
+
+3. Your Feed Service calls Post Service, which takes 5 seconds to respond. Feed Service has a 2-second timeout. Does the timeout stop Post Service from processing the request? What problems can this cause?
+Cover: client-side timeout semantics, continued server-side processing, wasted computation, duplicate operations, and cancellation limitations.
+Retry and failure handling
+
+4. Post Service returns HTTP 503 intermittently. How would you configure retries with exponential backoff and jitter? Which failures should not be retried?
+Cover: transient versus permanent failures, maximum attempts, backoff, jitter, HTTP status codes, and retry budgets.
+
+5. A request passes through API Gateway → Feed Service → Post Service. All three layers retry failed requests three times. What is the worst-case amplification of downstream attempts, and how would you prevent it?
+Cover: retry multiplication, retry ownership, bounded attempts, deadlines, and avoiding retries at every layer.
+
+6. Your application retries a payment request after a timeout, but the original request may already have succeeded. How would you prevent duplicate payments?
+Cover: idempotency keys, deduplication, transactional state, and distinguishing a failed response from a failed operation.
+Circuit Breaker and Resilience4j
+
+7. Explain CLOSED, OPEN, and HALF_OPEN states. Using a failure threshold of 50%, a count-based window of 10 calls, and a minimum of 3 calls, when can the circuit breaker open?
+Cover: failure-rate calculation, minimum sample size, threshold evaluation, and state transitions.
+
+8. Your circuit breaker has slow-call-rate-threshold: 50 and slow-call-duration-threshold: 1s. All requests succeed, but 60% take 1.5 seconds. What happens, and why?
+Cover: slow-call classification, slow-call rate, sample requirements, and opening the breaker even without exceptions.
+
+9. A circuit breaker remains CLOSED even though the downstream service is returning HTTP 503. How would you troubleshoot it?
+Cover: exception types, record-exceptions, ignored exceptions, HTTP client behavior, minimum calls, correct breaker instance, and whether the intended call is actually protected.
+
+10. The circuit breaker opens, waits 10 seconds, then allows three HALF_OPEN calls. Two succeed and one fails. What should happen next? What configuration and implementation details affect the result?
+Cover: permitted probe calls, recorded failure/slow-call rates, transition thresholds, automatic transitions, and version/configuration behavior.
+
+11. Your application has both @Retry and @CircuitBreaker. How can their execution order change observed failures and retry behavior? How would you verify the effective order?
+Cover: Resilience4j aspect ordering, decorator composition, whether the breaker observes individual attempts or the final retry result, and integration testing.
+Bulkhead and resource isolation
+
+12. Post Service becomes unresponsive and consumes all available request-processing threads in Feed Service. How would you isolate this failure?
+Cover: semaphore versus thread-pool bulkhead, concurrency limits, bounded queues, rejection handling, and timeouts.
+
+13. How would you select bulkhead concurrency limits for a service handling 2,000 requests per second? What measurements would you need before choosing a value?
+Cover: downstream capacity, latency distribution, connection pool limits, thread utilization, queueing, load testing, and saturation metrics.
+Spring Boot implementation and production operations
+
+14. How would you implement and configure Timeout, Retry, Circuit Breaker, and Bulkhead in a Spring Boot service using Resilience4j?
+Cover: dependency/configuration setup, HTTP client timeouts, annotations versus programmatic decorators, exception classification, fallback behavior, and tests.
+
+15. How would you implement a fallback when the circuit breaker is OPEN? When is cached or partial data appropriate, and when should the service return an error?
+Cover: business semantics, stale data, response contracts, fallback isolation, and avoiding hidden failures.
+
+16. Which metrics and alerts would you use to monitor resilience patterns in production?
+Cover: circuit breaker state transitions, failure rate, slow-call rate, retry attempts, rejected calls, bulkhead saturation, latency percentiles, and downstream error rates. Include Micrometer, Actuator, and Grafana where applicable.
+
+17. The circuit breaker opens repeatedly during peak traffic, although the downstream service is generally healthy. How would you diagnose and tune it without masking genuine failures?
+Cover: traffic volume, minimum calls, sliding window, slow-call thresholds, transient errors, dependency capacity, and controlled load testing.
+End-to-end production scenarios
+
+18. Your API Gateway timeout is 3 seconds, Feed Service timeout is 4 seconds, and Post Service timeout is 5 seconds. What is wrong with this configuration? How would you establish consistent deadlines across the request path?
+Cover: timeout hierarchy, total request budget, remaining deadline propagation, retries consuming the budget, and preventing callers from waiting longer than their own deadline.
+
+19. Post Service recovers after a 2-minute outage, but incoming traffic immediately overwhelms it again. How would you design a controlled recovery strategy?
+Cover: HALF_OPEN probes, gradual traffic restoration, concurrency limits, rate limiting, retry backoff, autoscaling, and recovery monitoring.
+
+20. Design a production-grade resilience strategy for Feed Service when it depends on Post Service and Profile Service, and the system must continue serving users during partial outages.

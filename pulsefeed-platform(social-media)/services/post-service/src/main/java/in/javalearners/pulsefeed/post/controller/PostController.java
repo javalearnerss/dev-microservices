@@ -46,13 +46,13 @@ public class PostController {
      * Creates a new post.
      *
      * @param request the validated post details
-     * @return the created post with a {@code Location} header
+     * @return the created post with a Location header
      */
     @PostMapping
     public ResponseEntity<Post> create(@Valid @RequestBody CreatePostRequest request) {
         log.info("POST /api/posts - create post, authorId={}, content length={}", request.authorId(), request.content().length());
         Post post = postService.create(request);
-        log.info("POST /api/posts - Post created successfully: id={}, authorId={}, content preview={}", post.id(), post.authorId(), post.content().substring(0, Math.min(50, post.content().length())));
+        log.info("POST /api/posts - Post created successfully: id={}, authorId={}", post.id(), post.authorId());
         return ResponseEntity.created(URI.create("/api/posts/" + post.id())).body(post);
     }
 
@@ -63,11 +63,11 @@ public class PostController {
      * @return matching posts, newest first
      */
     @GetMapping
-    public List<Post> findAll(@RequestParam(required = false) List<String> authorIds) {
-        log.info("GET /api/posts - Request received, listing posts with authorIds filter: {}", authorIds);
+    public ResponseEntity<List<Post>> findAll(@RequestParam(required = false) List<String> authorIds) {
+        log.info("GET /api/posts - Request received, authorIds filter present={}", authorIds != null);
         List<Post> posts = authorIds == null ? postService.findAll() : postService.findByAuthorIds(authorIds);
         log.info("GET /api/posts - Query completed, found {} posts", posts.size());
-        return posts;
+        return ResponseEntity.ok(posts);
     }
 
     /**
@@ -78,17 +78,15 @@ public class PostController {
      * @throws ResponseStatusException with 404 if the post does not exist
      */
     @GetMapping("/{id}")
-    public Post findById(@PathVariable String id) {
+    public ResponseEntity<Post> findById(@PathVariable String id) {
         log.info("GET /api/posts/{} - Request received, searching for post", id);
-        return postService.findById(id)
-                .map(post -> {
-                    log.info("GET /api/posts/{} - Post found: authorId={}, content preview={}", id, post.authorId(), post.content().substring(0, Math.min(50, post.content().length())));
-                    return post;
-                })
+        Post post = postService.findById(id)
                 .orElseThrow(() -> {
                     log.warn("GET /api/posts/{} - Post not found, returning 404", id);
                     return new ResponseStatusException(NOT_FOUND, "Post not found");
                 });
+        log.info("GET /api/posts/{} - Post found: authorId={}", id, post.authorId());
+        return ResponseEntity.ok(post);
     }
 
     /**
@@ -116,11 +114,11 @@ public class PostController {
      * @return the post
      */
     @GetMapping("/{id}/detail")
-    public Post getPostById(@PathVariable String id) {
+    public ResponseEntity<Post> getPostById(@PathVariable String id) {
         log.info("GET /api/posts/{}/detail - Request received", id);
         Post post = postService.getPostById(id);
         log.info("GET /api/posts/{}/detail - Post retrieved: authorId={}", id, post.authorId());
-        return post;
+        return ResponseEntity.ok(post);
     }
 
     /**
@@ -130,12 +128,12 @@ public class PostController {
      * @return list of posts
      */
     @GetMapping("/batch")
-    public List<Post> getPostsByIds(@RequestParam String ids) {
-        log.info("GET /api/posts/batch - Request received for posts: {}", ids);
+    public ResponseEntity<List<Post>> getPostsByIds(@RequestParam String ids) {
+        log.info("GET /api/posts/batch - Request received");
         List<String> postIds = List.of(ids.split(","));
         List<Post> posts = postService.getPostsByIds(postIds);
         log.info("GET /api/posts/batch - Retrieved {} posts", posts.size());
-        return posts;
+        return ResponseEntity.ok(posts);
     }
 
     /**
@@ -159,10 +157,10 @@ public class PostController {
      * @return list of posts by this author
      */
     @GetMapping("/author/{authorId}/posts")
-    public List<Post> getPostsByAuthor(@PathVariable String authorId) {
+    public ResponseEntity<List<Post>> getPostsByAuthor(@PathVariable String authorId) {
         log.info("GET /api/posts/author/{}/posts - Request received", authorId);
         List<Post> posts = postService.getPostsByAuthor(authorId);
-        log.info("GET /api/posts/author/{}/posts - Retrieved {} posts by author", authorId, posts.size());
-        return posts;
+        log.info("GET /api/posts/author/{}/posts - Retrieved {} posts by author", posts.size(), authorId);
+        return ResponseEntity.ok(posts);
     }
 }

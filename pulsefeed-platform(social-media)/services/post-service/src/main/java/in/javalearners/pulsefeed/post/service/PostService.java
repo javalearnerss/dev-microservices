@@ -1,11 +1,7 @@
 package in.javalearners.pulsefeed.post.service;
 
 import java.time.Instant;
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 import in.javalearners.pulsefeed.post.dto.CreatePostRequest;
@@ -49,6 +45,12 @@ public class PostService {
      * @return all posts, newest first
      */
     public List<Post> findAll() {
+        try {
+            failureSimulator.simulateCall();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Simulated slowness interrupted", e);
+        }
         return posts.values().stream()
                 .sorted(Comparator.comparing(Post::createdAt).reversed())
                 .toList();
@@ -118,7 +120,7 @@ public class PostService {
         
         return postIds.stream()
                 .map(posts::get)
-                .filter(post -> post != null)
+                .filter(Objects::nonNull)
                 .sorted(Comparator.comparing(Post::createdAt).reversed())
                 .toList();
     }

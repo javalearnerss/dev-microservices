@@ -10,9 +10,10 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 /**
- * REST controller exposing the feed endpoints.
- * All endpoints call User/Post services which trigger failure simulators.
- * Feed Service applies resilience patterns (timeout, retry, circuit breaker, bulkhead) to these calls.
+ * REST controller exposing feed operations.
+ * Post Service business calls are protected by {@code ResilientPostService};
+ * User Service calls are direct. Post Service simulator controls are exposed by
+ * the Post Service itself.
  */
 @RestController
 @RequestMapping("/api/feed")
@@ -33,8 +34,8 @@ public class FeedController {
 
     /**
      * Returns the feed of the given user.
-     * Calls User Service (with resilience) to get following list.
-     * Calls Post Service (with resilience) to get posts.
+     * Calls User Service directly to get the following list and uses
+     * {@code ResilientPostService} to retrieve posts.
      *
      * @param userId identifier of the user whose feed is requested
      * @return posts written by the users that the given user follows
@@ -48,7 +49,7 @@ public class FeedController {
     }
 
     /**
-     * Gets follower count from User Service with resilience patterns.
+     * Gets follower count directly from User Service.
      *
      * @param userId identifier of the user
      * @return follower count
@@ -75,88 +76,4 @@ public class FeedController {
         return posts;
     }
 
-    // ==================== Failure Simulator Control Endpoints ====================
-    // These endpoints allow Feed Service to control the failure simulators in User and Post services
-
-    /**
-     * Starts slowness simulation in Post Service.
-     * Used for testing timeout and retry patterns.
-     *
-     * @param delayMs delay in milliseconds
-     * @return confirmation message
-     */
-    @PostMapping("/management/post-service/slowness/start")
-    public ResponseEntity<String> startPostServiceSlowness(@org.springframework.web.bind.annotation.RequestParam(value = "delayMs", defaultValue = "500") long delayMs) {
-        log.info("POST /api/feed/management/post-service/slowness/start - Delay: {} ms", delayMs);
-        String result = feedService.startPostServiceSlowness(delayMs);
-        log.info("POST /api/feed/management/post-service/slowness/start - Result: {}", result);
-        return ResponseEntity.ok(result);
-    }
-
-    /**
-     * Stops slowness simulation in Post Service.
-     *
-     * @return confirmation message
-     */
-    @PostMapping("/management/post-service/slowness/stop")
-    public ResponseEntity<String> stopPostServiceSlowness() {
-        log.info("POST /api/feed/management/post-service/slowness/stop");
-        String result = feedService.stopPostServiceSlowness();
-        log.info("POST /api/feed/management/post-service/slowness/stop - Result: {}", result);
-        return ResponseEntity.ok(result);
-    }
-
-    /**
-     * Starts failure simulation in Post Service.
-     * Used for testing circuit breaker and retry patterns.
-     *
-     * @param failureCount number of failures to simulate
-     * @return confirmation message
-     */
-    @PostMapping("/management/post-service/failure/start")
-    public ResponseEntity<String> startPostServiceFailure(@RequestParam(value = "count", defaultValue = "5") int failureCount) {
-        log.info("POST /api/feed/management/post-service/failure/start - Count: {}", failureCount);
-        String result = feedService.startPostServiceFailure(failureCount);
-        log.info("POST /api/feed/management/post-service/failure/start - Result: {}", result);
-        return ResponseEntity.ok(result);
-    }
-
-    /**
-     * Stops failure simulation in Post Service.
-     *
-     * @return confirmation message
-     */
-    @PostMapping("/management/post-service/failure/stop")
-    public ResponseEntity<String> stopPostServiceFailure() {
-        log.info("POST /api/feed/management/post-service/failure/stop");
-        String result = feedService.stopPostServiceFailure();
-        log.info("POST /api/feed/management/post-service/failure/stop - Result: {}", result);
-        return ResponseEntity.ok(result);
-    }
-
-    /**
-     * Gets Post Service failure simulator status.
-     *
-     * @return status string
-     */
-    @GetMapping("/management/post-service/status")
-    public ResponseEntity<String> getPostServiceSimulatorStatus() {
-        log.info("GET /api/feed/management/post-service/status");
-        String status = feedService.getPostServiceSimulatorStatus();
-        log.info("GET /api/feed/management/post-service/status - Status: {}", status);
-        return ResponseEntity.ok(status);
-    }
-
-    /**
-     * Resets Post Service failure simulator.
-     *
-     * @return confirmation message
-     */
-    @PostMapping("/management/post-service/reset")
-    public ResponseEntity<String> resetPostServiceSimulator() {
-        log.info("POST /api/feed/management/post-service/reset");
-        String result = feedService.resetPostServiceSimulator();
-        log.info("POST /api/feed/management/post-service/reset - Result: {}", result);
-        return ResponseEntity.ok(result);
-    }
 }
